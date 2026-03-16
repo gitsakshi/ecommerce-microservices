@@ -1,0 +1,451 @@
+📘 Microservices E-Commerce Project Notes
+Progress Summary — Last 3 Days
+1️⃣ What We Achieved (High Level)
+
+We successfully built and tested a complete microservices checkout system with:
+
+Client
+ ↓
+API Gateway (JWT Authentication)
+ ↓
+Cart Service → Product Service
+ ↓
+Order Service → Cart Service
+ ↓
+Order Service → Inventory Service
+ ↓
+Database
+
+Technologies used:
+
+Spring Boot
+
+Spring Cloud Gateway
+
+Eureka Service Discovery
+
+OpenFeign
+
+Resilience4j Circuit Breaker
+
+JWT Authentication
+
+Docker
+
+Kafka (setup started)
+
+2️⃣ Microservices Architecture Built
+
+System currently contains these services:
+
+API Gateway
+Authentication Service
+Cart Service
+Product Service
+Order Service
+Inventory Service
+Eureka Server
+
+All services communicate through Eureka Service Discovery.
+
+Example:
+
+Order Service
+     ↓
+Feign Client
+     ↓
+Inventory Service
+3️⃣ API Gateway + JWT Authentication
+
+We implemented a central API Gateway using:
+
+Spring Cloud Gateway
+
+Purpose:
+
+Single entry point
+
+Routing requests
+
+Security enforcement
+
+Gateway port:
+
+8087
+
+Example request:
+
+POST /api/cart/add
+
+Gateway routes it to:
+
+Cart Service
+4️⃣ JWT Authentication Flow
+
+Authentication service generates JWT tokens.
+
+Login request:
+
+POST /api/auth/login
+
+Response:
+
+JWT Token
+
+Gateway validates JWT using custom filter.
+
+JWT Filter Logic
+if (path.startsWith("/api/auth")) {
+    return chain.filter(exchange);
+}
+
+Meaning:
+
+/api/auth/** → public
+
+All other APIs require:
+
+Authorization: Bearer <token>
+
+If missing:
+
+401 Unauthorized
+5️⃣ Major Debugging Issues We Solved
+
+These were the main problems fixed during these days.
+
+Problem 1 — 401 Unauthorized from Gateway
+
+Issue:
+
+Spring Security blocked requests before JWT filter ran
+
+Fix:
+
+SecurityConfig → permitAll()
+JWT filter handles authentication
+
+Final flow:
+
+Spring Security
+      ↓
+Allow request
+      ↓
+JWT Gateway Filter
+      ↓
+Validate token
+Problem 2 — Feign Service Discovery Failure
+
+Error:
+
+Load balancer does not contain an instance for service
+
+Cause:
+
+Service not registered with Eureka
+
+Fix:
+
+spring.application.name configured
+Eureka client dependency added
+Problem 3 — Cart Service Endpoint Mismatch
+
+Error:
+
+404 /cart/1
+
+Cause:
+
+Feign client used wrong path.
+
+Wrong:
+
+/cart/{id}
+
+Correct:
+
+/api/cart/{id}
+Problem 4 — Inventory Service Unique Constraint
+
+Error:
+
+Duplicate entry '1'
+
+Cause:
+
+Database unique constraint on product_id.
+
+Fix:
+
+Update quantity instead of inserting duplicate product
+6️⃣ Checkout Flow Implementation
+
+Checkout process:
+
+POST /api/order/checkout/{userId}
+
+Internal execution:
+
+1 Fetch cart from Cart Service
+2 Reduce stock via Inventory Service
+3 Calculate total price
+4 Save order
+5 Save order items
+6 Clear cart
+
+Code logic:
+
+CartResponse cart = cartClient.getCart(userId);
+inventoryClient.reduceStock(...)
+orderRepository.save(order);
+cartClient.clearCart(userId);
+7️⃣ Circuit Breaker (Resilience4j)
+
+Used to protect against service failures.
+
+Annotation used:
+
+@CircuitBreaker(name = "inventoryBreaker", fallbackMethod = "inventoryFallback")
+
+Fallback example:
+
+public Order inventoryFallback(Long userId, Throwable throwable) {
+    throw new RuntimeException("Inventory service unavailable");
+}
+
+Purpose:
+
+Prevent cascading failure
+Provide fallback response
+8️⃣ End-to-End API Testing
+
+Full flow tested via Gateway (8087).
+
+1 Login
+POST /api/auth/login
+
+Response:
+
+JWT Token
+2 Add Product to Cart
+POST /api/cart/add?userId=1&productId=2&qty=1
+
+Header:
+
+Authorization: Bearer <token>
+3 Get Cart
+GET /api/cart/1
+4 Checkout
+POST /api/order/checkout/1
+
+Result:
+
+Order created
+Inventory reduced
+Cart cleared
+
+All returned 200 OK.
+
+9️⃣ Docker Installation
+
+Installed:
+
+Docker Desktop
+WSL2
+
+Verified with:
+
+docker run hello-world
+
+Docker engine running successfully.
+
+🔟 Kafka Setup (Started)
+
+Created Docker environment for Kafka.
+
+docker-compose.yml
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka
+    ports:
+      - "9092:9092"
+
+Commands used:
+
+Start:
+
+docker compose up -d
+
+Stop:
+
+docker compose down
+1️⃣1️⃣ Target Architecture After Kafka
+
+Current system:
+
+Order Service → Inventory Service
+
+Future architecture:
+
+Order Service
+     ↓
+Kafka Topic (order-created)
+     ↓
+Inventory Service
+
+Benefits:
+
+Loose coupling
+Asynchronous processing
+Scalability
+Event-driven architecture
+1️⃣2️⃣ Important Commands Used
+
+Start Docker containers:
+
+docker compose up -d
+
+Stop containers:
+
+docker compose down
+
+Check running containers:
+
+docker ps
+
+Check all containers:
+
+docker ps -a
+
+Check logs:
+
+docker logs kafka
+1️⃣3️⃣ Important Concepts Learned
+
+Microservices concepts practiced:
+
+API Gateway pattern
+
+Service discovery
+
+Inter-service communication
+
+JWT authentication
+
+Circuit breaker pattern
+
+Event-driven architecture (Kafka)
+
+Containerization (Docker)
+
+1️⃣4️⃣ Interview Questions (Very Important)
+
+These are exact questions interviewers ask for projects like this.
+
+Architecture
+
+Q: Why do we use API Gateway?
+
+Answer:
+
+API Gateway acts as a single entry point for all client requests.
+It handles authentication, routing, rate limiting, and monitoring.
+
+Q: Why use Eureka Service Discovery?
+
+Answer:
+
+Microservices run on dynamic ports.
+Eureka allows services to discover each other without hardcoding URLs.
+
+Q: What is Feign Client?
+
+Answer:
+
+Feign simplifies REST API calls between microservices by using declarative interfaces.
+
+Q: What problem does Circuit Breaker solve?
+
+Answer:
+
+Prevents cascading failures when a service becomes unavailable.
+It stops repeated failing calls and triggers fallback logic.
+
+Q: Why use Kafka in microservices?
+
+Answer:
+
+Kafka enables asynchronous communication between services.
+It decouples producers and consumers and improves scalability.
+
+Q: Why Dockerize microservices?
+
+Answer:
+
+Docker ensures consistent environments across development and production.
+It simplifies deployment and scaling.
+
+Q: Difference between synchronous vs event-driven communication?
+
+Synchronous:
+
+Service A calls Service B directly.
+
+Event-Driven:
+
+Service A publishes event → Kafka → Service B consumes.
+
+Benefits:
+
+Loose coupling
+Better scalability
+Fault tolerance
+1️⃣5️⃣ Next Steps (Upcoming Work)
+
+Next improvements planned:
+
+1️⃣ Complete Kafka integration
+2️⃣ Publish OrderCreatedEvent
+3️⃣ Inventory consumes Kafka event
+4️⃣ Dockerize all microservices
+5️⃣ Create docker-compose for entire system
+
+Final architecture:
+
+Client
+ ↓
+API Gateway
+ ↓
+Order Service
+ ↓
+Kafka
+ ↓
+Inventory Service
+ ↓
+Database
+🧠 Key Learning From These Days
+
+You now built a production-style microservices backend with:
+
+authentication
+
+service discovery
+
+gateway routing
+
+inter-service communication
+
+fault tolerance
+
+containerization
+
+event streaming
+
+This is exactly the architecture used in modern backend systems.
